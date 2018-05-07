@@ -24,12 +24,12 @@ var balls = [], ballBodies = [], particles = [];
 const KEY_A = 65;
 const KEY_D = 68;
 
-const MAX_BALLS = 30;
+const MAX_BALLS = 10;
 
 var left = false, right = false;
 
 var N_SENSORS = 20;
-var N_ACTIONS = 2;//3;
+var N_ACTIONS = 3;
 // depth resolution
 var SENSOR_RESOLUTION = 3;
 // max depth
@@ -53,12 +53,14 @@ var gameOver = false;
 var frame = 0;
 
 function spawnBall() {
-  var ball = Bodies.circle(Common.random(-400, -20),
-    Common.random(-200, 0),
+  var ball = Bodies.circle(Common.random(-400, -30),
+    Common.random(0, 200),
     Common.random(20, 60),
     {
       restitution: 1.0,
       friction: 0,
+      frictionAir: 0,
+      inertia: Infinity,
       collisionFilter: {
         category: ballCategory,
         mask: defaultCategory
@@ -181,24 +183,10 @@ function getSensors() {
   return sensors;
 }
 
-/*function renderWorld() {
-  ctx.clearRect(0, 0, 300, 300);
-
-  ctx.rect(player.position.x, player.position.y, 30, 30);
-  ctx.stroke();
-
-  ballBodies.forEach(body => {
-    ctx.rect(body.position.x, body.position.y, 30, 30);
-    ctx.stroke();
-  });
-
-  window.requestAnimationFrame(renderWorld);
-}*/
-
-function step(act, steps=1) {
+function step(act) {
   var velX = 0;
   if (act == 0) velX -= 10;
-  else if (act == 1) velX += 10;
+  else if (act == 2) velX += 10;
 
   Body.setVelocity(player, {x: velX, y: player.velocity.y});
 
@@ -208,6 +196,16 @@ function step(act, steps=1) {
 
       World.remove(engine.world, ball.body);
       balls.splice(i, 1);
+      ballBodies.splice(i, 1);
+    }
+  }
+
+  for (var i = balls.length-1; i >= 0; i--) {
+    var ball = balls[i];
+
+    if (ball.body.position.x > 900 || ball.body.position.y > 700) {
+      World.remove(engine.world, ball.body);
+      balls.splice(i, 1)
       ballBodies.splice(i, 1);
     }
   }
@@ -230,7 +228,7 @@ function step(act, steps=1) {
 
   var sensors = getSensors();
 
-  if (frame % 60 == 0) {
+  if (frame % 30 == 0) {
     spawnBall();
   }
 
@@ -240,14 +238,6 @@ function step(act, steps=1) {
   if (gameOver) reward = -1;
 
   return {sensors: sensors, reward: reward, gameOver: gameOver};
-}
-
-function autoStep() {
-  var act = Math.floor(Math.random()*N_ACTIONS);
-  var result = step(act);
-  if (result.gameOver) {
-    resetGame()
-  }
 }
 
 window.addEventListener('keyup', (e) => {

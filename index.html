@@ -8,6 +8,8 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.12.0/matter.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@0.9.0"> </script>
   <script type="text/javascript" src="https://www.gstatic.com/charts/loader.js"></script>
+  <!--<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.4.0/Chart.min.js"></script>
+  <script type="text/javascript" src="https://canvasjs.com/assets/script/canvasjs.min.js"></script>-->
 
   <script src="https://code.jquery.com/jquery-3.3.1.slim.min.js" integrity="sha384-q8i/X+965DzO0rT7abK41JStQIAqVgRVzpbzo5smXKp4YfRvH+8abtTE1Pi6jizo" crossorigin="anonymous"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.0/umd/popper.min.js" integrity="sha384-cs/chFZiN24E4KMATLdqdvsezGxaGsi4hLGOzlXwp5UZB1LY//20VyM2taTB4QvJ" crossorigin="anonymous"></script>
@@ -31,23 +33,27 @@
       <div class="col-sm-2 text-center">
         <button id='start' type="button" class="btn btn-primary" onclick="toggletrain();">Start</button>
       </div>
-      <div class="col-sm-3">
+      <div class="col-sm-2">
         <label for="speed">Speed</label>
-        <input type="range" min="1" max="20" value="10" class="slider" id="speed">
+        <input type="range" min="-100" max="20" value="0" class="slider" id="speed">
       </div>
-      <div class="col-sm-3">
+      <div class="col-sm-2">
         <label for="skip">Skip frames</label>
         <input type="range" min="1" max="8" value="4" class="slider" id="skip">
       </div>
-      <div class="col-sm-3">
+      <div class="col-sm-2">
         <label for="stack">Stack frames</label>
         <input type="range" min="1" max="4" value="2" class="slider" id="stack">
       </div>
+      <div class="col-sm-2 text-center">
+        <button id='graph' type="button" class="btn btn-primary" onclick="updateGraphs();">Graph</button>
+      </div>
+      </div>
     </div>
 
-    <div id="score_div"></div>
-    <div id="loss_div"></div>
-    <div id="time_div"></div>
+    <div id="scoreChart" style="height: 300px; width: 100%;"></div>
+    <div id="lossChart" style="height: 300px; width: 100%;"></div>
+    <div id="timeChart" style="height: 300px; width: 100%;"></div>
 
   <script src="world.js"></script>
   <script src="agent.js"></script>

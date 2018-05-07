@@ -30,22 +30,33 @@ function toggletrain() {
 }
 
 function train() {
+  var t = 0;
   var info = null;
-  var done = false;
   const trainer = traingen();
   const ctx = render.canvas.getContext("2d");
 
   function renderWorld() {
     if (info != null) {
+      ctx.font = "30px Verdana";
+      ctx.fillStyle = "white";
+      ctx.fillText(info.episode, render.canvas.width - ctx.measureText(info.episode).width - 20, 30);
+
+      ctx.font = "40px Verdana";
+      ctx.fillStyle = "white";
+      ctx.fillText(info.score, render.canvas.width - ctx.measureText(info.score).width - 20, 70);
+
       ctx.beginPath();
-      ctx.fillStyle = "DodgerBlue";
-      var h = info.values[info.action]*100;
-      ctx.rect(30, 80, 200-h, 20);
+      var h = info.values[info.action]*10;
+
+      if (h >= 0) {
+        ctx.fillStyle = "DodgerBlue";
+      } else {
+        ctx.fillStyle = "Tomato";
+      }
+
+      ctx.rect(60, 80, h/10, 20);
       ctx.fill();
 
-      /*ctx.beginPath();
-      ctx.rect(400, 200-info.reward*100, 30, info.reward*100);
-      ctx.fill();*/
       var offset = -10 + info.action * 10
       ctx.beginPath();
       ctx.fillStyle = "black";
@@ -64,9 +75,9 @@ function train() {
       }*/
 
       var valSum = info.values.reduce(function(a, b) { return a + b; }, 0);
-      for (let i = 0; i < info.values.length; i++) {
+      for (let i = 0; i < info.normValues.length; i++) {
         ctx.beginPath();
-        var shade = Math.floor(info.values[i] * 255);
+        var shade = Math.floor(info.normValues[i] * 255);
         ctx.fillStyle = 'rgb(' + shade + ',' + shade + ',' + shade + ')';
         ctx.rect(30+i*30, 20, 20, 20);
         ctx.fill();
@@ -83,16 +94,24 @@ function train() {
       }
     }
 
-    if (training) {
-      for (let i = 0; i < speedSlider.value; i++) {
-        info = trainer.next().value;
-      }
-    }
-
     window.requestAnimationFrame(renderWorld);
   }
 
+  function trainUpdate() {
+    if (training) {
+      for (let i = 0; i < Math.max(1, speedSlider.value); i++) {
+        //let t1 = new Date().getTime();
+        info = trainer.next().value;
+        //data3.addRows([[t, (new Date().getTime() - t1)/1000]]);
+        //t++;
+      }
+    }
+
+    setTimeout(trainUpdate, Math.max(0, -speedSlider.value));
+  }
+
   window.requestAnimationFrame(renderWorld);
+  setTimeout(trainUpdate, 0);
 }
 
 train();
@@ -138,9 +157,13 @@ function learn() {
   const batch_r = tf.tensor1d(array_r);
   const batch_done = tf.tensor1d(array_done);
 
-  const max_q = oldModel.predict(batch_next_s).max(1);
-  const targets = batch_r.add(max_q.mul(tf.scalar(0.99)).mul(batch_done));
 
+  const targets = tf.tidy(() => {
+    const max_q = oldModel.predict(batch_next_s).max(1);
+    const targets = batch_r.add(max_q.mul(tf.scalar(0.99)).mul(batch_done));
+    return targets;
+  });
+  
   const predMask = tf.oneHot(batch_a, N_ACTIONS);
 
   const loss = optimizer.minimize(() => {
@@ -157,6 +180,16 @@ function learn() {
     x.dispose();
     return re;
   }, true);
+
+  batch_prev_s.dispose();
+  batch_a.dispose();
+  batch_next_s.dispose();
+  batch_r.dispose();
+  batch_done.dispose();
+  targets.dispose();
+  predMask.dispose();
+
+  //await tf.nextFrame();
 
   return loss;
 }
@@ -179,7 +212,7 @@ function* traingen(episodes = 100000) {
 
   for (let ep = 0; ep < episodes; ep++) {
     //console.log("episode: " + ep);
-    const history = [resetGame()];
+    var history = [resetGame()];
     var done = false;
     var frames = 0;
     const startTime = new Date().getTime();
@@ -200,7 +233,7 @@ function* traingen(episodes = 100000) {
       const obstensor = tf.tensor2d([observation]);
       const vals = model.predict(obstensor);
 
-      if (Math.random() > Math.max(0.1, 1-ep/1000)) {
+      if (Math.random() > Math.max(0.1, 1-ep/100)) {
         const maxact = vals.argMax(1);
         act = maxact.dataSync();
         maxact.dispose();
@@ -213,10 +246,18 @@ function* traingen(episodes = 100000) {
       }
 
       const normVals = tf.softmax(vals);
-      const t1 = new Date().getTime();
-      const r = result.reward;
-      yield {observation: observation, reward: r, values: normVals.dataSync(), action: act};
-      data3.addRows([[steps, (new Date().getTime()-t1)/1000.0]]);
+      //
+      yield {
+        episode: ep,
+        score: frames,
+        observation: observation,
+        reward: result.reward,
+        values: vals.dataSync(),
+        normValues: normVals.dataSync(),
+        action: act
+      };
+      //chart3.data.labels.push(steps);
+      //
 
       obstensor.dispose();
       vals.dispose();
@@ -224,26 +265,44 @@ function* traingen(episodes = 100000) {
 
       history.push(result.sensors);
 
-      replay.push({prev_s: observation,
-        action: act, reward: result.reward, next_s: stackObs(), done: result.gameOver});
-
-      if (replay.length >= init_buffer) {
-        tf.tidy(function() {
-          const loss = tf.tidy(learn);
-          if (result.gameOver) {
-            const lossc = loss.dataSync()[0];
-            data2.addRows([[ep, lossc]]);
-            //chart2.draw(data2, chart2opt);
-          }
-          loss.dispose();
-        });
-      }
-
-      if (replay.length > MAX_REPLAY_BUFFER) {
-        replay = replay.slice(replay.length - MAX_REPLAY_BUFFER);
+      if (history.length > obsFrames) {
+        history = history.slice(history.length - obsFrames);
       }
 
       done = result.gameOver || frames > 60*30;
+
+      replay.push({prev_s: observation,
+        action: act, reward: result.reward, next_s: stackObs(), done: done});
+
+      if (replay.length >= init_buffer) {
+        let t1 = new Date().getTime();
+        const loss = learn();
+        data3.addRows([[ep, (new Date().getTime() - t1)/1000]]);
+
+        if (result.gameOver) {
+          const lossc = loss.dataSync()[0];
+
+          //data2.addRows([[ep, lossc]]);
+          //chart2.draw(data2, chart2opt);
+
+          /*chart2.data.labels.push(ep);
+          chart2.data.datasets[0].data.push(lossc);
+          chart2.update();*/
+
+          if (ep % 1 == 0) {
+            data2.addRows([[ep, lossc]]);
+            //chart2.options.data[0].dataPoints.push({ x: ep, y: lossc});
+          }
+        }
+        loss.dispose();
+
+        async function run() {
+          await tf.nextFrame();
+        }
+
+        run();
+      }
+
       frames++;
       steps++;
 
@@ -251,25 +310,53 @@ function* traingen(episodes = 100000) {
         freezeModel();
         console.log("syncing models");
         console.log("replay buffer: " + replay.length);
-        console.log("numTensors: " + tf.memory().numTensors);
+        console.log("numBytes: " + tf.memory().numBytes);
 
-        chart1.draw(data1, chart1opt);
-        chart2.draw(data2, chart2opt);
-        chart3.draw(data3, chart3opt);
+        if (steps % 10000 == 0) {
+          //chart1.update();
+          //chart2.update();
+          //chart3.update();
+
+          //chart1.draw(data1, chart1opt);
+          //chart2.draw(data2, chart2opt);
+          //chart3.draw(data3, chart3opt);
+
+          //chart1.render();
+          //chart2.render();
+          //chart3.render();
+        }
+        
       }
+    }
+
+    if (replay.length > MAX_REPLAY_BUFFER) {
+      replay = replay.slice(replay.length - MAX_REPLAY_BUFFER);
     }
 
     scores.push(frames);
     const sps = frames/((new Date().getTime() - startTime)/1000);
     console.log("ep " + ep + ": survived " + frames + "; steps/second: " + sps);
-    //console.log(balls.length + " " + particles.length);
-    data1.addRows([[ep, frames]]);
-    //chart1.draw(data1, chart1opt);
-    //data3.addRows([[ep, sps]]);
-    //chart3.draw(data3, chart3opt);
-    //console.log(scores);
+
+    /*chart1.data.labels.push(ep);
+    chart1.data.datasets[0].data.push(frames);
+    chart1.update();
+
+    chart3.data.labels.push(ep);
+    chart3.data.datasets[0].data.push(sps);
+    chart3.update();*/
+
+    if (ep % 1 == 0) {
+      //chart1.options.data[0].dataPoints.push({ x: ep, y: frames});
+      //chart3.options.data[0].dataPoints.push({ x: ep, y: sps});
+      data1.addRows([[ep, frames]]);
+      //data3.addRows([[ep, sps]]);
+    }
+    
+    //chart1.render();
+    //chart3.render();
   }
 }
+
 
 var data1, chart1, data2, chart2, data3, chart3;
 google.charts.load('current', {packages: ['corechart', 'line']});
@@ -311,7 +398,7 @@ function drawScores() {
   data1.addColumn('number', 'X');
   data1.addColumn('number', 'Score');
 
-  chart1 = new google.visualization.LineChart(document.getElementById('score_div'));
+  chart1 = new google.visualization.LineChart(document.getElementById('scoreChart'));
   chart1.draw(data1, chart1opt);
 }
 
@@ -320,7 +407,7 @@ function drawLosses() {
   data2.addColumn('number', 'X');
   data2.addColumn('number', 'Loss');
 
-  chart2 = new google.visualization.LineChart(document.getElementById('loss_div'));
+  chart2 = new google.visualization.LineChart(document.getElementById('lossChart'));
   chart2.draw(data2, chart2opt);
 }
 
@@ -329,6 +416,78 @@ function drawTimes() {
   data3.addColumn('number', 'X');
   data3.addColumn('number', 'UPS');
 
-  chart3 = new google.visualization.LineChart(document.getElementById('time_div'));
+  chart3 = new google.visualization.LineChart(document.getElementById('timeChart'));
   chart3.draw(data3, chart3opt);
 }
+
+
+function createChart(name, color, canvasid) {
+  /*let canvas = document.getElementById(canvasid);
+  //canvas.height = '100px';
+  let ctx = canvas.getContext('2d');
+
+  return new Chart(ctx, {
+      type: 'line',
+
+      data: {
+          labels: [],
+          datasets: [{
+              label: name,
+              //backgroundColor: 'rgb(255, 99, 132)',
+              borderColor: color,
+              data: [],
+              lineTension: 0,
+              fill: false
+          }]
+      },
+
+      options: {
+        //responsive: true,
+        //maintainAspectRatio: false,
+        scales: {
+          xAxes: [{
+            ticks: {
+              autoSkip: true,
+              maxTicksLimit: 20
+            }
+          }]
+        },
+        animation: false,
+        elements: { point: { radius: 0 } }
+      }
+  });*/
+
+  var chart = new CanvasJS.Chart(canvasid, {
+    title:{
+    text: name
+    },
+     data: [
+    {
+      lineColor: color,
+      markerType: "none",
+      type: "line",
+
+      dataPoints: [
+      ]
+    }
+    ]
+  });
+
+  chart.render();
+
+  return chart;
+}
+
+//var chart1 = createChart('score', 'blue', 'scoreChart');
+//var chart2 = createChart('loss', 'red', 'lossChart');
+//var chart3 = createChart('time', 'orange', 'timeChart');
+
+function updateGraphs() {
+  //chart1.render();
+  //chart2.render();
+  //chart3.render();
+  chart1.draw(data1, chart1opt);
+  chart2.draw(data2, chart2opt);
+  chart3.draw(data3, chart3opt);
+}
+

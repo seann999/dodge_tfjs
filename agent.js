@@ -100,10 +100,7 @@ function train() {
   function trainUpdate() {
     if (training) {
       for (let i = 0; i < Math.max(1, speedSlider.value); i++) {
-        //let t1 = new Date().getTime();
         info = trainer.next().value;
-        //data3.addRows([[t, (new Date().getTime() - t1)/1000]]);
-        //t++;
       }
     }
 
@@ -189,8 +186,6 @@ function learn() {
   targets.dispose();
   predMask.dispose();
 
-  //await tf.nextFrame();
-
   return loss;
 }
 
@@ -211,7 +206,6 @@ function* traingen(episodes = 100000) {
   var steps = 0;
 
   for (let ep = 0; ep < episodes; ep++) {
-    //console.log("episode: " + ep);
     var history = [resetGame()];
     var done = false;
     var frames = 0;
@@ -246,7 +240,7 @@ function* traingen(episodes = 100000) {
       }
 
       const normVals = tf.softmax(vals);
-      //
+
       yield {
         episode: ep,
         score: frames,
@@ -256,8 +250,6 @@ function* traingen(episodes = 100000) {
         normValues: normVals.dataSync(),
         action: act
       };
-      //chart3.data.labels.push(steps);
-      //
 
       obstensor.dispose();
       vals.dispose();
@@ -282,17 +274,7 @@ function* traingen(episodes = 100000) {
         if (result.gameOver) {
           const lossc = loss.dataSync()[0];
 
-          //data2.addRows([[ep, lossc]]);
-          //chart2.draw(data2, chart2opt);
-
-          /*chart2.data.labels.push(ep);
-          chart2.data.datasets[0].data.push(lossc);
-          chart2.update();*/
-
-          if (ep % 1 == 0) {
-            data2.addRows([[ep, lossc]]);
-            //chart2.options.data[0].dataPoints.push({ x: ep, y: lossc});
-          }
+          data2.addRows([[ep, lossc]]);
         }
         loss.dispose();
 
@@ -310,22 +292,7 @@ function* traingen(episodes = 100000) {
         freezeModel();
         console.log("syncing models");
         console.log("replay buffer: " + replay.length);
-        console.log("numBytes: " + tf.memory().numBytes);
-
-        if (steps % 10000 == 0) {
-          //chart1.update();
-          //chart2.update();
-          //chart3.update();
-
-          //chart1.draw(data1, chart1opt);
-          //chart2.draw(data2, chart2opt);
-          //chart3.draw(data3, chart3opt);
-
-          //chart1.render();
-          //chart2.render();
-          //chart3.render();
-        }
-        
+        console.log("numBytes: " + tf.memory().numBytes);   
       }
     }
 
@@ -337,23 +304,9 @@ function* traingen(episodes = 100000) {
     const sps = frames/((new Date().getTime() - startTime)/1000);
     console.log("ep " + ep + ": survived " + frames + "; steps/second: " + sps);
 
-    /*chart1.data.labels.push(ep);
-    chart1.data.datasets[0].data.push(frames);
-    chart1.update();
-
-    chart3.data.labels.push(ep);
-    chart3.data.datasets[0].data.push(sps);
-    chart3.update();*/
-
-    if (ep % 1 == 0) {
-      //chart1.options.data[0].dataPoints.push({ x: ep, y: frames});
-      //chart3.options.data[0].dataPoints.push({ x: ep, y: sps});
-      data1.addRows([[ep, frames]]);
-      //data3.addRows([[ep, sps]]);
-    }
-    
-    //chart1.render();
-    //chart3.render();
+    data1.addRows([[ep, frames]]);
+    //data3.addRows([[ep, sps]]);
+    updateGraphs();
   }
 }
 
@@ -366,7 +319,7 @@ google.charts.setOnLoadCallback(drawTimes);
 
 var chart1opt = {
     hAxis: {
-      title: 'Time'
+      title: 'Episode'
     },
     vAxis: {
       title: 'Score'
@@ -375,7 +328,7 @@ var chart1opt = {
 
 var chart2opt = {
     hAxis: {
-      title: 'Time'
+      title: 'Episode'
     },
     vAxis: {
       title: 'Loss'
@@ -385,10 +338,10 @@ var chart2opt = {
 
 var chart3opt = {
     hAxis: {
-      title: 'Time'
+      title: 'Episode'
     },
     vAxis: {
-      title: 'Updates/Second'
+      title: 'Seconds'
     },
     colors: ['orange']
   };
@@ -414,78 +367,13 @@ function drawLosses() {
 function drawTimes() {
   data3 = new google.visualization.DataTable();
   data3.addColumn('number', 'X');
-  data3.addColumn('number', 'UPS');
+  data3.addColumn('number', 'learn() time');
 
   chart3 = new google.visualization.LineChart(document.getElementById('timeChart'));
   chart3.draw(data3, chart3opt);
 }
 
-
-function createChart(name, color, canvasid) {
-  /*let canvas = document.getElementById(canvasid);
-  //canvas.height = '100px';
-  let ctx = canvas.getContext('2d');
-
-  return new Chart(ctx, {
-      type: 'line',
-
-      data: {
-          labels: [],
-          datasets: [{
-              label: name,
-              //backgroundColor: 'rgb(255, 99, 132)',
-              borderColor: color,
-              data: [],
-              lineTension: 0,
-              fill: false
-          }]
-      },
-
-      options: {
-        //responsive: true,
-        //maintainAspectRatio: false,
-        scales: {
-          xAxes: [{
-            ticks: {
-              autoSkip: true,
-              maxTicksLimit: 20
-            }
-          }]
-        },
-        animation: false,
-        elements: { point: { radius: 0 } }
-      }
-  });*/
-
-  var chart = new CanvasJS.Chart(canvasid, {
-    title:{
-    text: name
-    },
-     data: [
-    {
-      lineColor: color,
-      markerType: "none",
-      type: "line",
-
-      dataPoints: [
-      ]
-    }
-    ]
-  });
-
-  chart.render();
-
-  return chart;
-}
-
-//var chart1 = createChart('score', 'blue', 'scoreChart');
-//var chart2 = createChart('loss', 'red', 'lossChart');
-//var chart3 = createChart('time', 'orange', 'timeChart');
-
 function updateGraphs() {
-  //chart1.render();
-  //chart2.render();
-  //chart3.render();
   chart1.draw(data1, chart1opt);
   chart2.draw(data2, chart2opt);
   chart3.draw(data3, chart3opt);

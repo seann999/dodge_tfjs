@@ -121,7 +121,7 @@ function kill() {
           mask: noCategory
         },
         render: {
-          fillStyle: "#f00"
+          fillStyle: "#fff"
         }
       });
 

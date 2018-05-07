@@ -3,6 +3,8 @@
 var init_buffer = 100;
 var batch_size = 32;
 var MAX_REPLAY_BUFFER = 10000;
+var syncEvery = 100;
+var exploreEnd = 10000;
 var speedSlider = document.getElementById("speed");
 var skipSlider = document.getElementById("skip");
 var stackSlider = document.getElementById("stack");
@@ -11,12 +13,13 @@ var training = false;
 
 function createModel(stack) {
   const model = tf.sequential();
+  const h = 64;
   model.add(tf.layers.dense(
-    {units: 32, activation: 'relu', inputDim: (N_SENSORS+1)*obsFrames}));
+    {units: h, activation: 'elu', inputDim: (N_SENSORS+1)*obsFrames}));
   model.add(tf.layers.dense(
-    {units: 32, activation: 'relu', inputDim: 32}));
+    {units: h, activation: 'elu', inputDim: h}));
   model.add(tf.layers.dense(
-    {units: N_ACTIONS, activation: 'linear', inputDim: 32}));
+    {units: N_ACTIONS, activation: 'linear', inputDim: h}));
   /*model.add(tf.layers.dense(
       {units: N_ACTIONS, activation: 'linear', inputDim: N_SENSORS+2}));*/
 
@@ -127,9 +130,17 @@ var replay = [];
 const learningRate = 0.001;
 const optimizer = tf.train.adam(learningRate);
 
-function lossFunc(predictions, targets, mask) {
-  const mse = tf.mul(predictions.sub(targets.expandDims(1)).square(), mask.asType('float32')).mean();
-  return mse;
+function mse(predictions, targets, mask) {
+  const e = tf.mul(predictions.sub(targets.expandDims(1)).square(), mask.asType('float32')).mean();
+  return e;
+}
+
+function calcTarget(batch_next_s, batch_r, batch_done) {
+  return tf.tidy(() => {
+    const max_q = oldModel.predict(batch_next_s).max(1);
+    const targets = batch_r.add(max_q.mul(tf.scalar(0.99)).mul(batch_done));
+    return targets;
+  });
 }
 
 function learn() {
@@ -153,37 +164,27 @@ function learn() {
   const batch_next_s = tf.tensor2d(array_next_s);
   const batch_r = tf.tensor1d(array_r);
   const batch_done = tf.tensor1d(array_done);
-
-
-  const targets = tf.tidy(() => {
-    const max_q = oldModel.predict(batch_next_s).max(1);
-    const targets = batch_r.add(max_q.mul(tf.scalar(0.99)).mul(batch_done));
-    return targets;
-  });
   
   const predMask = tf.oneHot(batch_a, N_ACTIONS);
+
+  const targets = calcTarget(batch_next_s, batch_r, batch_done);
 
   const loss = optimizer.minimize(() => {
     const x = tf.variable(batch_prev_s);
     const predictions = model.predict(x);
-
-    //console.log(batch_prev_s.dataSync())
-    //console.log(predictions.dataSync());
-    //console.log(targets.dataSync());
-    //console.log(predMask.dataSync());
-    //console.log('--');
-
-    const re = lossFunc(predictions, targets, predMask);
+    const re = mse(predictions, targets, predMask);
     x.dispose();
     return re;
-  }, true);
+  }, true, modelVars);
+
+  targets.dispose();
 
   batch_prev_s.dispose();
   batch_a.dispose();
   batch_next_s.dispose();
   batch_r.dispose();
   batch_done.dispose();
-  targets.dispose();
+
   predMask.dispose();
 
   return loss;
@@ -193,12 +194,18 @@ obsFrames = stackSlider.value;
 oldModel = createModel();
 model = createModel();
 
+const modelVars = [];
+
+for (let i = 0; i < model.weights.length; i++) {
+  modelVars.push(model.weights[i].val);
+}
+
 freezeModel();
 for (let i = 0; i < model.weights.length; i++) {
   console.log(model.weights[i].val.dataSync());
 }
 
-function* traingen(episodes = 100000) {
+function* traingen(episodes = 10000000) {
   console.log("building model...");
 
   console.log("training...");
@@ -227,7 +234,7 @@ function* traingen(episodes = 100000) {
       const obstensor = tf.tensor2d([observation]);
       const vals = model.predict(obstensor);
 
-      if (Math.random() > Math.max(0.1, 1-ep/100)) {
+      if (Math.random() > Math.max(0.1, 1-steps/exploreEnd)) {
         const maxact = vals.argMax(1);
         act = maxact.dataSync();
         maxact.dispose();
@@ -269,7 +276,6 @@ function* traingen(episodes = 100000) {
       if (replay.length >= init_buffer) {
         let t1 = new Date().getTime();
         const loss = learn();
-        data3.addRows([[ep, (new Date().getTime() - t1)/1000]]);
 
         if (result.gameOver) {
           const lossc = loss.dataSync()[0];
@@ -277,19 +283,14 @@ function* traingen(episodes = 100000) {
           data2.addRows([[ep, lossc]]);
         }
         loss.dispose();
-
-        async function run() {
-          await tf.nextFrame();
-        }
-
-        run();
       }
 
       frames++;
       steps++;
 
-      if (steps % 100 === 0) {
+      if (steps % syncEvery === 0) {
         freezeModel();
+        console.log("step: " + steps);
         console.log("syncing models");
         console.log("replay buffer: " + replay.length);
         console.log("numBytes: " + tf.memory().numBytes);   
@@ -305,7 +306,7 @@ function* traingen(episodes = 100000) {
     console.log("ep " + ep + ": survived " + frames + "; steps/second: " + sps);
 
     data1.addRows([[ep, frames]]);
-    //data3.addRows([[ep, sps]]);
+    data3.addRows([[ep, sps]]);
     updateGraphs();
   }
 }
@@ -341,7 +342,7 @@ var chart3opt = {
       title: 'Episode'
     },
     vAxis: {
-      title: 'Seconds'
+      title: 'Updates/Second'
     },
     colors: ['orange']
   };
@@ -367,7 +368,7 @@ function drawLosses() {
 function drawTimes() {
   data3 = new google.visualization.DataTable();
   data3.addColumn('number', 'X');
-  data3.addColumn('number', 'learn() time');
+  data3.addColumn('number', 'UPS');
 
   chart3 = new google.visualization.LineChart(document.getElementById('timeChart'));
   chart3.draw(data3, chart3opt);

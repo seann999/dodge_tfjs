@@ -230,7 +230,7 @@ function step(act, steps=1) {
 
   var sensors = getSensors();
 
-  if (frame % 30 == 0) {
+  if (frame % 60 == 0) {
     spawnBall();
   }
 

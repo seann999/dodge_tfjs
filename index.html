@@ -25,6 +25,9 @@
       <div class="col-sm-12 text-center">
         <h1>Falling Balls + DQN</h1>
       </div>
+      <div class="col-sm-12 text-center">
+        <p>A demo of a DQN agent that learns to dodge falling balls, inspired by an old iPhone game.<br>The game utilizes <a href="http://brm.io/matter-js/">Matter.js</a> while the deep neural network is built with <a href="https://js.tensorflow.org/">TensorFlow.js</a><br>Hyperparameters and settings can be edited below. Code and further details are on <a href="https://github.com/seann999/dodge_tfjs">GitHub</a>.</p>
+      </div>
     </div>
     <div class="row">
       <canvas id="world"></canvas>
@@ -39,6 +42,9 @@
       <div class="col-sm-6">
         <label for="speed">Play Speed</label>
         <input type="range" min="-100" max="20" value="0" class="slider" id="speed">
+
+        <input id="showSensors" type="checkbox" class="form-check-input" value="">Show sensors
+        <input id="manualControl" type="checkbox" class="form-check-input" value="">Manual control
       </div>
     </div>
     <div class="row mb-3">

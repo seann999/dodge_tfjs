@@ -1,5 +1,7 @@
 'use strict';
 
+const showSensors = document.getElementById('showSensors');
+
 function renderWorld() {
   if (info != null) {
     ctx.font = "30px Verdana";
@@ -29,15 +31,21 @@ function renderWorld() {
     ctx.rect(player.position.x + offset + 5, player.position.y-10, 10, 10);
     ctx.fill();
 
-    /*for (var i = 0; i < N_SENSORS; i++) {
-      var th = Math.PI - Math.PI / N_SENSORS * i;
-      var mag = -(info.observation[i+2] * SENSOR_RESOLUTION - (SENSOR_RESOLUTION+1));
-      ctx.beginPath();
-      ctx.moveTo(player.position.x, player.position.y);
-      ctx.lineTo(player.position.x + Math.cos(th)*mag*SENSOR_RANGE/SENSOR_RESOLUTION,
-        player.position.y - Math.sin(th)*mag*SENSOR_RANGE/SENSOR_RESOLUTION);
-      ctx.stroke();
-    }*/
+    if (showSensors.checked) {
+      const res = params.sensorDepthResolution;
+
+      for (var i = 0; i < params.numSensors; i++) {
+        const th = Math.PI - Math.PI / (params.numSensors-1) * i;
+        const hit = info.observation[i+(0)*(params.numSensors+1)+1];
+        const k = 1.0-hit;
+
+        ctx.beginPath();
+        ctx.moveTo(player.position.x, player.position.y);
+        ctx.lineTo(player.position.x + Math.cos(th)*k*params.sensorRange,
+          player.position.y - Math.sin(th)*k*params.sensorRange);
+        ctx.stroke();
+      }
+    }
 
     const valSum = info.values.reduce(function(a, b) { return a + b; }, 0);
     for (let i = 0; i < info.normValues.length; i++) {
@@ -92,29 +100,36 @@ var chart3opt = {
     title: 'Episode'
   },
   vAxis: {
-    title: 'Updates/Second'
+    title: 'Frames/Second'
   },
   colors: ['orange']
 };
 
-function drawCharts() {
+function resetChartData() {
   data1 = new google.visualization.DataTable();
   data1.addColumn('number', 'X');
   data1.addColumn('number', 'Score');
 
-  chart1 = new google.visualization.LineChart(document.getElementById('scoreChart'));
-  chart1.draw(data1, chart1opt);
-
-  /*data2 = new google.visualization.DataTable();
+  /*
+  data2 = new google.visualization.DataTable();
   data2.addColumn('number', 'X');
   data2.addColumn('number', 'Loss');
 
-  chart2 = new google.visualization.LineChart(document.getElementById('lossChart'));
-  chart2.draw(data2, chart2opt);
-
   data3 = new google.visualization.DataTable();
   data3.addColumn('number', 'X');
-  data3.addColumn('number', 'UPS');
+  data3.addColumn('number', 'FPS');
+  */
+}
+
+function drawCharts() {
+  resetChartData();
+
+  chart1 = new google.visualization.LineChart(document.getElementById('scoreChart'));
+  chart1.draw(data1, chart1opt);
+
+  /*
+  chart2 = new google.visualization.LineChart(document.getElementById('lossChart'));
+  chart2.draw(data2, chart2opt);
 
   chart3 = new google.visualization.LineChart(document.getElementById('timeChart'));
   chart3.draw(data3, chart3opt);*/

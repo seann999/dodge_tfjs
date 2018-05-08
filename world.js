@@ -30,12 +30,7 @@ const MAX_BALLS = 10;
 
 var left = false, right = false;
 
-var N_SENSORS = 20;
 const N_ACTIONS = 3;
-// depth resolution
-const SENSOR_RESOLUTION = 3;
-// max depth
-var SENSOR_RANGE = 300;
 
 var myCanvas = document.getElementById('world');
 var ctx = myCanvas.getContext("2d");
@@ -136,12 +131,10 @@ function kill() {
   World.add(engine.world, newParts);
 }
 
-resetGame();
-
 Render.run(render);
 
 function lethal(body) {
-  return ballBodies.indexOf(body) != -1 || body == wallL || body == wallR;
+  return ballBodies.indexOf(body) != -1/* || body == wallL || body == wallR*/;
 }
 
 Events.on(engine, 'collisionStart', function(event) {
@@ -159,22 +152,23 @@ Events.on(engine, 'collisionStart', function(event) {
 });
 
 function getSensors() {
-  var sensors = [];
+  const sensors = [];
+  const res = params.sensorDepthResolution;
 
   // player position
   sensors.push(player.position.x / 800);
 
-  for (var i = 0; i < N_SENSORS; i++) {
-    var th = Math.PI - Math.PI / N_SENSORS * i;
+  for (let i = 0; i < params.numSensors; i++) {
+    const th = Math.PI - Math.PI / (params.numSensors-1) * i;
     var hit = 0;
 
-    for (var k = 1; k <= SENSOR_RESOLUTION; k++) {
-        var results = Matter.Query.ray(ballBodies, player.position,
-        {x: player.position.x + Math.cos(th)*k*SENSOR_RANGE/SENSOR_RESOLUTION,
-          y: player.position.y - Math.sin(th)*k*SENSOR_RANGE/SENSOR_RESOLUTION}).length;
+    for (let k = 1; k <= res; k++) {
+        let results = Matter.Query.ray(ballBodies, player.position,
+          {x: player.position.x + Math.cos(th)*k*params.sensorRange/res,
+          y: player.position.y - Math.sin(th)*k*params.sensorRange/res}).length;
 
         if (results > 0) {
-          hit = ((SENSOR_RESOLUTION+1)-k)/SENSOR_RESOLUTION;
+          hit = (res-k+1)/res;
           break;
         }
     }

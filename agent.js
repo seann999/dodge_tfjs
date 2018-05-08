@@ -16,14 +16,17 @@ var paramString = `params = {
   replayStartSize: 100,
 
   numSensors: 20,
-  sensorRange: 300,
-  sensorDepthResolution: 3,
-  
+  sensorRange: 600,
+  sensorDepthResolution: 4,
+
   hiddenLayers: [64, 64],
-  activation: 'elu'
+  activation: 'elu',
+
+  maxEpisodeFrames: 2000
 }`;
 
 document.getElementById('settings').value = paramString;
+eval(paramString);
 
 var trainer = null;
 var speedSlider = document.getElementById('speed');
@@ -39,7 +42,8 @@ var targetModel = null;
 var modelVars = null;
 var replay = null;
 var optimizer = null;
-const maxEpisodeLength = 60*30;
+
+const manualControl = document.getElementById('manualControl');
 
 function resetSignal() {
   reset = true;
@@ -52,11 +56,11 @@ function resetTrain() {
 
   resetGame();
 
-  data1 = new google.visualization.DataTable();
-  data1.addColumn('number', 'X');
-  data1.addColumn('number', 'Score');
+  if (data1) {
+    resetChartData();
+  }
 
-  console.log("resetting; numTensors: " + tf.memory().numTensors);
+  //console.log("resetting; numTensors: " + tf.memory().numTensors);
 
   for (let i = 0; i < model.weights.length; i++) {
     model.weights[i].val.dispose();
@@ -72,10 +76,10 @@ function resetTrain() {
     }
   }
 
-  console.log(model);
-  console.log(targetModel);
+  //console.log(model);
+  //console.log(targetModel);
 
-  console.log("reset; numTensors: " + tf.memory().numTensors);
+  //console.log("reset; numTensors: " + tf.memory().numTensors);
   document.getElementById('start').innerHTML = 'Start';
 }
 
@@ -110,11 +114,11 @@ function initTrain() {
 
 function toggleTrain() {
   if (!training) {
-    console.log("starting; numTensors: " + tf.memory().numTensors);
+    //console.log("starting; numTensors: " + tf.memory().numTensors);
 
     if (!started) {
       initTrain();
-      console.log("init; numTensors: " + tf.memory().numTensors);
+      //console.log("init; numTensors: " + tf.memory().numTensors);
 
       setTimeout(trainUpdate, 0);
 
@@ -162,9 +166,9 @@ function trainUpdate() {
     for (let i = 0; i < Math.max(1, speedSlider.value); i++) {
       info = trainer.next().value;
     }
-  }
 
-  setTimeout(trainUpdate, Math.max(0, -speedSlider.value));
+    setTimeout(trainUpdate, Math.max(0, -speedSlider.value));
+  }
 }
 
 function targetUpdate() {
@@ -216,12 +220,18 @@ function* trainGen(episodes = 10000000) {
       const vals = model.predict(obsTensor);
       obsTensor.dispose();
 
-      const a = Math.min(1, totalFrames/params.finExpFrame);
+      if (manualControl.checked) {
+        if (left) act = 0;
+        else if (right) act = 2;
+        else act = 1;
+      } else {
+        const a = Math.min(1, totalFrames/params.finExpFrame);
 
-      if (Math.random() > a*0.1+(1-a)*params.initExp) {
-        const maxAct = vals.argMax(1);
-        act = maxAct.dataSync();
-        maxAct.dispose();
+        if (Math.random() > a*0.1+(1-a)*params.initExp) {
+          const maxAct = vals.argMax(1);
+          act = maxAct.dataSync();
+          maxAct.dispose();
+        }
       }
 
       var result = null;
@@ -232,10 +242,13 @@ function* trainGen(episodes = 10000000) {
 
       const normVals = tf.softmax(vals);
 
+      history.push(result.sensors);
+      const nextS = stackObs();
+
       yield {
         episode: ep,
         score: epFrames,
-        observation: observation,
+        observation: nextS,
         reward: result.reward,
         values: vals.dataSync(),
         normValues: normVals.dataSync(),
@@ -245,12 +258,10 @@ function* trainGen(episodes = 10000000) {
       vals.dispose();
       normVals.dispose();
 
-      history.push(result.sensors);
-
-      epDone = result.gameOver || epFrames > maxEpisodeLength;
+      epDone = result.gameOver || epFrames > params.maxEpisodeFrames;
 
       replay.push({prevS: observation,
-        action: act, reward: result.reward, nextS: stackObs(), done: epDone});
+        action: act, reward: result.reward, nextS: nextS, done: epDone});
 
       if (replay.length > params.replayMemorySize) {
         replay = replay.slice(replay.length - params.replayMemorySize);
@@ -336,3 +347,7 @@ function learn() {
 
   return loss;
 }
+
+/*window.onload = function() {
+  resetTrain();
+}*/

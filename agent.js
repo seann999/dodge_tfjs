@@ -1,6 +1,8 @@
 'use strict';
 
-var params = {
+var params;
+
+var paramString = `params = {
   minibatchSize: 32,
   replayMemorySize: 10000,
   stackFrames: 2,
@@ -14,9 +16,14 @@ var params = {
   replayStartSize: 100,
 
   numSensors: 20,
+  sensorRange: 300,
+  sensorDepthResolution: 3,
+  
   hiddenLayers: [64, 64],
   activation: 'elu'
-};
+}`;
+
+document.getElementById('settings').value = paramString;
 
 var trainer = null;
 var speedSlider = document.getElementById('speed');
@@ -49,6 +56,8 @@ function resetTrain() {
   data1.addColumn('number', 'X');
   data1.addColumn('number', 'Score');
 
+  console.log("resetting; numTensors: " + tf.memory().numTensors);
+
   for (let i = 0; i < model.weights.length; i++) {
     model.weights[i].val.dispose();
   }
@@ -71,6 +80,14 @@ function resetTrain() {
 }
 
 function initTrain() {
+  paramString = document.getElementById('settings').value;
+
+  try {
+    eval(paramString);
+  } catch (err) {
+    alert("Problem occured parsing parameters:\n" + err.message);
+  }
+  
   modelVars = [];
   replay = [];
   optimizer = tf.train.adam(params.learningRate);
@@ -93,8 +110,12 @@ function initTrain() {
 
 function toggleTrain() {
   if (!training) {
+    console.log("starting; numTensors: " + tf.memory().numTensors);
+
     if (!started) {
       initTrain();
+      console.log("init; numTensors: " + tf.memory().numTensors);
+
       setTimeout(trainUpdate, 0);
 
       started = true;

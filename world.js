@@ -33,7 +33,7 @@ var left = false, right = false;
 var N_SENSORS = 20;
 const N_ACTIONS = 3;
 // depth resolution
-var SENSOR_RESOLUTION = 3;
+const SENSOR_RESOLUTION = 3;
 // max depth
 var SENSOR_RANGE = 300;
 

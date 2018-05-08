@@ -11,7 +11,7 @@ function renderWorld() {
     ctx.fillText(info.score, render.canvas.width - ctx.measureText(info.score).width - 20, 70);
 
     ctx.beginPath();
-    var h = info.values[info.action]*10;
+    const h = info.values[info.action]*10;
 
     if (h >= 0) {
       ctx.fillStyle = "DodgerBlue";
@@ -22,7 +22,7 @@ function renderWorld() {
     ctx.rect(60, 80, h/10, 20);
     ctx.fill();
 
-    var offset = -10 + info.action * 10
+    const offset = -10 + info.action * 10
     ctx.beginPath();
     ctx.fillStyle = "black";
     ctx.rect(player.position.x + offset - 15, player.position.y-10, 10, 10);
@@ -39,10 +39,10 @@ function renderWorld() {
       ctx.stroke();
     }*/
 
-    var valSum = info.values.reduce(function(a, b) { return a + b; }, 0);
+    const valSum = info.values.reduce(function(a, b) { return a + b; }, 0);
     for (let i = 0; i < info.normValues.length; i++) {
       ctx.beginPath();
-      var shade = Math.floor(info.normValues[i] * 255);
+      const shade = Math.floor(info.normValues[i] * 255);
       ctx.fillStyle = 'rgb(' + shade + ',' + shade + ',' + shade + ')';
       ctx.rect(30+i*30, 20, 20, 20);
       ctx.fill();
@@ -52,7 +52,7 @@ function renderWorld() {
       ctx.beginPath();
       const col = Math.floor(i % (info.observation.length / params.stackFrames));
       const row = Math.floor(i / (info.observation.length / params.stackFrames));
-      var shade = Math.floor(info.observation[i] * 255);
+      const shade = Math.floor(info.observation[i] * 255);
       ctx.fillStyle = 'rgb(' + shade + ',' + shade + ',' + shade + ')';
       ctx.rect(30+col*30, 50+row*(20/params.stackFrames), 20, 20/params.stackFrames);
       ctx.fill();
@@ -66,9 +66,7 @@ window.requestAnimationFrame(renderWorld);
 
 var data1, chart1, data2, chart2, data3, chart3;
 google.charts.load('current', {packages: ['corechart', 'line']});
-google.charts.setOnLoadCallback(drawScores);
-//google.charts.setOnLoadCallback(drawLosses);
-//google.charts.setOnLoadCallback(drawTimes);
+google.charts.setOnLoadCallback(drawCharts);
 
 var chart1opt = {
   hAxis: {
@@ -99,31 +97,27 @@ var chart3opt = {
   colors: ['orange']
 };
 
-function drawScores() {
+function drawCharts() {
   data1 = new google.visualization.DataTable();
   data1.addColumn('number', 'X');
   data1.addColumn('number', 'Score');
 
   chart1 = new google.visualization.LineChart(document.getElementById('scoreChart'));
   chart1.draw(data1, chart1opt);
-}
 
-function drawLosses() {
-  data2 = new google.visualization.DataTable();
+  /*data2 = new google.visualization.DataTable();
   data2.addColumn('number', 'X');
   data2.addColumn('number', 'Loss');
 
   chart2 = new google.visualization.LineChart(document.getElementById('lossChart'));
   chart2.draw(data2, chart2opt);
-}
 
-function drawTimes() {
   data3 = new google.visualization.DataTable();
   data3.addColumn('number', 'X');
   data3.addColumn('number', 'UPS');
 
   chart3 = new google.visualization.LineChart(document.getElementById('timeChart'));
-  chart3.draw(data3, chart3opt);
+  chart3.draw(data3, chart3opt);*/
 }
 
 function updateGraphs() {

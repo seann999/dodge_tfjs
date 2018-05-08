@@ -1,4 +1,7 @@
 # Falling Balls + DQN
+
+![gif](https://raw.githubusercontent.com/seann999/dodge_tfjs/master/demo.gif)
+
 A demo of a DQN agent that learns to dodge falling balls, inspired by an old iPhone game.
 
 The game utilizes [Matter.js](http://brm.io/matter-js/) while the neural network is built with [TensorFlow.js](https://js.tensorflow.org/).

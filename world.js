@@ -109,9 +109,11 @@ function resetGame() {
 function kill() {
   var newParts = [];
   for (var i = 0; i < 100; i++) {
-    var p = Bodies.circle(player.position.x,
-      player.position.y,
-      Common.random(5, 10),
+    let size = Common.random(10, 20);
+
+    var p = Bodies.rectangle(player.position.x+Common.random(-10, 10),
+      player.position.y+Common.random(-10, 10),
+      size, size,
       {
         collisionFilter: {
           category: particleCategory,

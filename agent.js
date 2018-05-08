@@ -53,6 +53,7 @@ function resetTrain() {
   reset = false;
   started = false;
   training = false;
+  info = null;
 
   resetGame();
 
@@ -162,9 +163,11 @@ function createModel(stack) {
 function trainUpdate() {
   if (reset) {
     resetTrain();
-  } else if (training) {
-    for (let i = 0; i < Math.max(1, speedSlider.value); i++) {
-      info = trainer.next().value;
+  } else {
+    if (training) {
+      for (let i = 0; i < Math.max(1, speedSlider.value); i++) {
+        info = trainer.next().value;
+      }
     }
 
     setTimeout(trainUpdate, Math.max(0, -speedSlider.value));

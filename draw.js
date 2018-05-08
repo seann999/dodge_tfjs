@@ -108,7 +108,7 @@ var chart3opt = {
 function resetChartData() {
   data1 = new google.visualization.DataTable();
   data1.addColumn('number', 'X');
-  data1.addColumn('number', 'Score');
+  data1.addColumn('number', 'Agent');
 
   /*
   data2 = new google.visualization.DataTable();

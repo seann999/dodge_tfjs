@@ -23,39 +23,32 @@
   <div class="container mt-4">
     <div class="row mb-3">
       <div class="col-sm-12 text-center">
-        <h1>Falling Balls + Q-Learning</h1>
+        <h1>Falling Balls + DQN</h1>
       </div>
     </div>
     <div class="row">
       <canvas id="world"></canvas>
     </div>
     <div class="row mt-3">
-      <div class="col-sm-2 text-center">
-        <button id='start' type="button" class="btn btn-primary" onclick="toggletrain();">Start</button>
+      <div class="col-sm-3 text-center">
+        <button id='start' type="button" class="btn btn-primary" onclick="toggleTrain();">Start</button>
       </div>
-      <div class="col-sm-2">
-        <label for="speed">Speed</label>
+      <div class="col-sm-3 text-center">
+        <button id='reset' type="button" class="btn btn-primary" onclick="resetSignal();">Stop</button>
+      </div>
+      <div class="col-sm-6">
+        <label for="speed">Play Speed</label>
         <input type="range" min="-100" max="20" value="0" class="slider" id="speed">
       </div>
-      <div class="col-sm-2">
-        <label for="skip">Skip frames</label>
-        <input type="range" min="1" max="8" value="4" class="slider" id="skip">
-      </div>
-      <div class="col-sm-2">
-        <label for="stack">Stack frames</label>
-        <input type="range" min="1" max="4" value="2" class="slider" id="stack">
-      </div>
-      <!--<div class="col-sm-2 text-center">
-        <button id='graph' type="button" class="btn btn-primary" onclick="updateGraphs();">Graph</button>
-      </div>-->
-      </div>
     </div>
+  </div>
 
-    <div id="scoreChart" style="height: 300px; width: 100%;"></div>
-    <div id="lossChart" style="height: 300px; width: 100%;"></div>
-    <div id="timeChart" style="height: 300px; width: 100%;"></div>
+  <div id="scoreChart" style="height: 300px; width: 100%;"></div>
+  <!--<div id="lossChart" style="height: 300px; width: 100%;"></div>
+  <div id="timeChart" style="height: 300px; width: 100%;"></div>-->
 
   <script src="world.js"></script>
   <script src="agent.js"></script>
+  <script src="draw.js"></script>
 </body>
 </html>

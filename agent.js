@@ -1,248 +1,211 @@
 'use strict';
 
-var init_buffer = 100;
-var batch_size = 32;
-var MAX_REPLAY_BUFFER = 10000;
-var syncEvery = 100;
-var exploreEnd = 10000;
-var speedSlider = document.getElementById("speed");
-var skipSlider = document.getElementById("skip");
-var stackSlider = document.getElementById("stack");
-var obsFrames = 1;
+var params = {
+  minibatchSize: 32,
+  replayMemorySize: 10000,
+  stackFrames: 2,
+  targetUpdateFreq: 100,
+  discount: 0.99,
+  actionRepeat: 4,
+  learningRate: 0.001,
+  initExp: 1.0,
+  finExp: 0.1,
+  finExpFrame: 10000,
+  replayStartSize: 100,
+
+  numSensors: 20,
+  hiddenLayers: [64, 64],
+  activation: 'elu'
+};
+
+var trainer = null;
+var speedSlider = document.getElementById('speed');
+var info = null;
+
 var training = false;
+var started = false;
+var reset = false;
+
+var model = null;
+var targetModel = null;
+
+var modelVars = null;
+var replay = null;
+var optimizer = null;
+const maxEpisodeLength = 60*30;
+
+function resetSignal() {
+  reset = true;
+}
+
+function resetTrain() {
+  reset = false;
+  started = false;
+  training = false;
+
+  resetGame();
+
+  data1 = new google.visualization.DataTable();
+  data1.addColumn('number', 'X');
+  data1.addColumn('number', 'Score');
+
+  for (let i = 0; i < model.weights.length; i++) {
+    model.weights[i].val.dispose();
+  }
+
+  for (let i = 0; i < targetModel.weights.length; i++) {
+    targetModel.weights[i].val.dispose();
+  }
+
+  for(var key in optimizer) {
+    if (optimizer[key]['isDisposed'] !== undefined) {
+      optimizer[key].dispose();
+    }
+  }
+
+  console.log(model);
+  console.log(targetModel);
+
+  console.log("reset; numTensors: " + tf.memory().numTensors);
+  document.getElementById('start').innerHTML = 'Start';
+}
+
+function initTrain() {
+  modelVars = [];
+  replay = [];
+  optimizer = tf.train.adam(params.learningRate);
+
+  trainer = trainGen();
+
+  console.log("building model...");
+  targetModel = createModel();
+  model = createModel();
+  targetUpdate();
+
+  for (let i = 0; i < model.weights.length; i++) {
+    modelVars.push(model.weights[i].val);
+  }
+
+  /*for (let i = 0; i < model.weights.length; i++) {
+    console.log(model.weights[i].val.dataSync());
+  }*/
+}
+
+function toggleTrain() {
+  if (!training) {
+    if (!started) {
+      initTrain();
+      setTimeout(trainUpdate, 0);
+
+      started = true;
+    }   
+
+    training = true;
+    document.getElementById('start').innerHTML = 'Pause';
+  } else {
+    training = false;
+    document.getElementById('start').innerHTML = 'Resume';
+  }
+}
 
 function createModel(stack) {
   const model = tf.sequential();
-  const h = 64;
-  model.add(tf.layers.dense(
-    {units: h, activation: 'elu', inputDim: (N_SENSORS+1)*obsFrames}));
-  model.add(tf.layers.dense(
-    {units: h, activation: 'elu', inputDim: h}));
-  model.add(tf.layers.dense(
-    {units: N_ACTIONS, activation: 'linear', inputDim: h}));
-  /*model.add(tf.layers.dense(
-      {units: N_ACTIONS, activation: 'linear', inputDim: N_SENSORS+2}));*/
+  
+  model.add(tf.layers.dense({
+    units: params.hiddenLayers[0],
+    activation: params.activation,
+    inputDim: (params.numSensors+1)*params.stackFrames
+  }));
+
+  for (let i = 0; i < params.hiddenLayers.length-1; i++) {
+    model.add(tf.layers.dense({
+      units: params.hiddenLayers[i+1],
+      activation: params.activation,
+      inputDim: params.hiddenLayers[i]
+    }));
+  }
+
+  model.add(tf.layers.dense({
+    units: N_ACTIONS,
+    activation: 'linear',
+    inputDim: params.hiddenLayers[params.hiddenLayers.length-1]
+  }));
 
   return model;
 }
 
-function toggletrain() {
-  training = !training;
-
-  document.getElementById('start').innerHTML = training ? 'Pause' : 'Resume';
-}
-
-function train() {
-  var t = 0;
-  var info = null;
-  const trainer = traingen();
-  const ctx = render.canvas.getContext("2d");
-
-  function renderWorld() {
-    if (info != null) {
-      ctx.font = "30px Verdana";
-      ctx.fillStyle = "white";
-      ctx.fillText(info.episode, render.canvas.width - ctx.measureText(info.episode).width - 20, 30);
-
-      ctx.font = "40px Verdana";
-      ctx.fillStyle = "white";
-      ctx.fillText(info.score, render.canvas.width - ctx.measureText(info.score).width - 20, 70);
-
-      ctx.beginPath();
-      var h = info.values[info.action]*10;
-
-      if (h >= 0) {
-        ctx.fillStyle = "DodgerBlue";
-      } else {
-        ctx.fillStyle = "Tomato";
-      }
-
-      ctx.rect(60, 80, h/10, 20);
-      ctx.fill();
-
-      var offset = -10 + info.action * 10
-      ctx.beginPath();
-      ctx.fillStyle = "black";
-      ctx.rect(player.position.x + offset - 15, player.position.y-10, 10, 10);
-      ctx.rect(player.position.x + offset + 5, player.position.y-10, 10, 10);
-      ctx.fill();
-
-      /*for (var i = 0; i < N_SENSORS; i++) {
-        var th = Math.PI - Math.PI / N_SENSORS * i;
-        var mag = -(info.observation[i+2] * SENSOR_RESOLUTION - (SENSOR_RESOLUTION+1));
-        ctx.beginPath();
-        ctx.moveTo(player.position.x, player.position.y);
-        ctx.lineTo(player.position.x + Math.cos(th)*mag*SENSOR_RANGE/SENSOR_RESOLUTION,
-          player.position.y - Math.sin(th)*mag*SENSOR_RANGE/SENSOR_RESOLUTION);
-        ctx.stroke();
-      }*/
-
-      var valSum = info.values.reduce(function(a, b) { return a + b; }, 0);
-      for (let i = 0; i < info.normValues.length; i++) {
-        ctx.beginPath();
-        var shade = Math.floor(info.normValues[i] * 255);
-        ctx.fillStyle = 'rgb(' + shade + ',' + shade + ',' + shade + ')';
-        ctx.rect(30+i*30, 20, 20, 20);
-        ctx.fill();
-      }
-
-      for (let i = 0; i < info.observation.length; i++) {
-        ctx.beginPath();
-        const col = Math.floor(i % (info.observation.length / obsFrames));
-        const row = Math.floor(i / (info.observation.length / obsFrames));
-        var shade = Math.floor(info.observation[i] * 255);
-        ctx.fillStyle = 'rgb(' + shade + ',' + shade + ',' + shade + ')';
-        ctx.rect(30+col*30, 50+row*(20/obsFrames), 20, 20/obsFrames);
-        ctx.fill();
-      }
+function trainUpdate() {
+  if (reset) {
+    resetTrain();
+  } else if (training) {
+    for (let i = 0; i < Math.max(1, speedSlider.value); i++) {
+      info = trainer.next().value;
     }
-
-    window.requestAnimationFrame(renderWorld);
   }
 
-  function trainUpdate() {
-    if (training) {
-      for (let i = 0; i < Math.max(1, speedSlider.value); i++) {
-        info = trainer.next().value;
-      }
-    }
-
-    setTimeout(trainUpdate, Math.max(0, -speedSlider.value));
-  }
-
-  window.requestAnimationFrame(renderWorld);
-  setTimeout(trainUpdate, 0);
+  setTimeout(trainUpdate, Math.max(0, -speedSlider.value));
 }
 
-train();
+function targetUpdate() {
+  console.log("updating target model");
 
-var model = null;
-var oldModel = null;
-
-function freezeModel() {
   for (let i = 0; i < model.weights.length; i++) {
-    oldModel.weights[i].val.assign(model.weights[i].val);
+    targetModel.weights[i].val.assign(model.weights[i].val);
   }
 }
-
-var replay = [];
-
-const learningRate = 0.001;
-const optimizer = tf.train.adam(learningRate);
 
 function mse(predictions, targets, mask) {
   const e = tf.mul(predictions.sub(targets.expandDims(1)).square(), mask.asType('float32')).mean();
   return e;
 }
 
-function calcTarget(batch_next_s, batch_r, batch_done) {
+function calcTarget(batchR, batchNextS, batchDone) {
   return tf.tidy(() => {
-    const max_q = oldModel.predict(batch_next_s).max(1);
-    const targets = batch_r.add(max_q.mul(tf.scalar(0.99)).mul(batch_done));
+    const maxQ = targetModel.predict(batchNextS).max(1);
+    const targets = batchR.add(maxQ.mul(tf.scalar(params.discount)).mul(batchDone));
     return targets;
   });
 }
 
-function learn() {
-  const array_prev_s = [];
-  const array_a = [];
-  const array_next_s = [];
-  const array_r = [];
-  const array_done = [];
-
-  for (let i = 0; i < batch_size; i++) {
-    const exp = replay[Math.floor(Math.random() * replay.length)];
-    array_prev_s.push(exp.prev_s);
-    array_a.push(exp.action);
-    array_next_s.push(exp.next_s);
-    array_r.push(exp.reward);
-    array_done.push(exp.done ? 0 : 1);
-  }
-
-  const batch_prev_s = tf.tensor2d(array_prev_s);
-  const batch_a = tf.tensor1d(array_a, 'int32');
-  const batch_next_s = tf.tensor2d(array_next_s);
-  const batch_r = tf.tensor1d(array_r);
-  const batch_done = tf.tensor1d(array_done);
-  
-  const predMask = tf.oneHot(batch_a, N_ACTIONS);
-
-  const targets = calcTarget(batch_next_s, batch_r, batch_done);
-
-  const loss = optimizer.minimize(() => {
-    const x = tf.variable(batch_prev_s);
-    const predictions = model.predict(x);
-    const re = mse(predictions, targets, predMask);
-    x.dispose();
-    return re;
-  }, true, modelVars);
-
-  targets.dispose();
-
-  batch_prev_s.dispose();
-  batch_a.dispose();
-  batch_next_s.dispose();
-  batch_r.dispose();
-  batch_done.dispose();
-
-  predMask.dispose();
-
-  return loss;
-}
-
-obsFrames = stackSlider.value;
-oldModel = createModel();
-model = createModel();
-
-const modelVars = [];
-
-for (let i = 0; i < model.weights.length; i++) {
-  modelVars.push(model.weights[i].val);
-}
-
-freezeModel();
-for (let i = 0; i < model.weights.length; i++) {
-  console.log(model.weights[i].val.dataSync());
-}
-
-function* traingen(episodes = 10000000) {
-  console.log("building model...");
-
+function* trainGen(episodes = 10000000) {
   console.log("training...");
   const scores = [];
-  var steps = 0;
+  var totalFrames = 0;
 
   for (let ep = 0; ep < episodes; ep++) {
     var history = [resetGame()];
-    var done = false;
-    var frames = 0;
+    var epDone = false;
+    var epFrames = 0;
     const startTime = new Date().getTime();
 
     function stackObs() {
       const arrays = [];
 
-      for (let i = 0; i < obsFrames; i++) {
+      for (let i = 0; i < params.stackFrames; i++) {
         arrays.push(history[Math.max(0, history.length-1-i)]);
       }
 
       return Array.prototype.concat.apply([], arrays);
     }
 
-    while (!done) {
+    while (!epDone) {
       var act = Math.floor(Math.random()*N_ACTIONS);
       const observation = stackObs();
-      const obstensor = tf.tensor2d([observation]);
-      const vals = model.predict(obstensor);
+      const obsTensor = tf.tensor2d([observation]);
+      const vals = model.predict(obsTensor);
+      obsTensor.dispose();
 
-      if (Math.random() > Math.max(0.1, 1-steps/exploreEnd)) {
-        const maxact = vals.argMax(1);
-        act = maxact.dataSync();
-        maxact.dispose();
+      const a = Math.min(1, totalFrames/params.finExpFrame);
+
+      if (Math.random() > a*0.1+(1-a)*params.initExp) {
+        const maxAct = vals.argMax(1);
+        act = maxAct.dataSync();
+        maxAct.dispose();
       }
 
       var result = null;
 
-      for (let t = 0; t < skipSlider.value; t++) {
+      for (let t = 0; t < params.actionRepeat; t++) {
         result = step(act);
       }
 
@@ -250,7 +213,7 @@ function* traingen(episodes = 10000000) {
 
       yield {
         episode: ep,
-        score: frames,
+        score: epFrames,
         observation: observation,
         reward: result.reward,
         values: vals.dataSync(),
@@ -258,125 +221,97 @@ function* traingen(episodes = 10000000) {
         action: act
       };
 
-      obstensor.dispose();
       vals.dispose();
       normVals.dispose();
 
       history.push(result.sensors);
 
-      if (history.length > obsFrames) {
-        history = history.slice(history.length - obsFrames);
+      epDone = result.gameOver || epFrames > maxEpisodeLength;
+
+      replay.push({prevS: observation,
+        action: act, reward: result.reward, nextS: stackObs(), done: epDone});
+
+      if (replay.length > params.replayMemorySize) {
+        replay = replay.slice(replay.length - params.replayMemorySize);
       }
 
-      done = result.gameOver || frames > 60*30;
-
-      replay.push({prev_s: observation,
-        action: act, reward: result.reward, next_s: stackObs(), done: done});
-
-      if (replay.length >= init_buffer) {
-        let t1 = new Date().getTime();
+      if (replay.length >= params.replayStartSize) {
         const loss = learn();
 
         if (result.gameOver) {
           const lossc = loss.dataSync()[0];
-
-          data2.addRows([[ep, lossc]]);
+          console.log("loss: " + lossc);
+          //data2.addRows([[ep, lossc]]);
         }
         loss.dispose();
       }
 
-      frames++;
-      steps++;
+      epFrames++;
+      totalFrames++;
 
-      if (steps % syncEvery === 0) {
-        freezeModel();
-        console.log("step: " + steps);
-        console.log("syncing models");
+      if (totalFrames % params.targetUpdateFreq === 0) {
+        targetUpdate();
+
+        console.log("frame: " + totalFrames);
         console.log("replay buffer: " + replay.length);
-        console.log("numBytes: " + tf.memory().numBytes);   
+        console.log("numTensors: " + tf.memory().numTensors);
       }
     }
 
-    if (replay.length > MAX_REPLAY_BUFFER) {
-      replay = replay.slice(replay.length - MAX_REPLAY_BUFFER);
-    }
+    scores.push(epFrames);
+    const fps = epFrames/((new Date().getTime() - startTime)/1000);
+    console.log("ep " + ep + ": survived " + epFrames + "; frames/second: " + fps);
 
-    scores.push(frames);
-    const sps = frames/((new Date().getTime() - startTime)/1000);
-    console.log("ep " + ep + ": survived " + frames + "; steps/second: " + sps);
-
-    data1.addRows([[ep, frames]]);
-    data3.addRows([[ep, sps]]);
+    data1.addRows([[ep, epFrames]]);
+    //data3.addRows([[ep, sps]]);
     updateGraphs();
   }
 }
 
+function learn() {
+  const arrayPrevS = [];
+  const arrayA = [];
+  const arrayR = [];
+  const arrayNextS = [];
+  const arrayDone = [];
 
-var data1, chart1, data2, chart2, data3, chart3;
-google.charts.load('current', {packages: ['corechart', 'line']});
-google.charts.setOnLoadCallback(drawScores);
-google.charts.setOnLoadCallback(drawLosses);
-google.charts.setOnLoadCallback(drawTimes);
+  for (let i = 0; i < params.minibatchSize; i++) {
+    const exp = replay[Math.floor(Math.random() * replay.length)];
+    arrayPrevS.push(exp.prevS);
+    arrayA.push(exp.action);
+    arrayNextS.push(exp.nextS);
+    arrayR.push(exp.reward);
+    arrayDone.push(exp.done ? 0 : 1);
+  }
 
-var chart1opt = {
-    hAxis: {
-      title: 'Episode'
-    },
-    vAxis: {
-      title: 'Score'
-    }
-  };
+  const batchPrevS = tf.tensor2d(arrayPrevS);
+  const batchA = tf.tensor1d(arrayA, 'int32');
+  const batchR = tf.tensor1d(arrayR);
+  const batchNextS = tf.tensor2d(arrayNextS);
+  const batchDone = tf.tensor1d(arrayDone);
+  
+  const predMask = tf.oneHot(batchA, N_ACTIONS);
 
-var chart2opt = {
-    hAxis: {
-      title: 'Episode'
-    },
-    vAxis: {
-      title: 'Loss'
-    },
-    colors: ['red']
-  };
+  const targets = calcTarget(batchR, batchNextS, batchDone);
 
-var chart3opt = {
-    hAxis: {
-      title: 'Episode'
-    },
-    vAxis: {
-      title: 'Updates/Second'
-    },
-    colors: ['orange']
-  };
+  const loss = optimizer.minimize(() => {
+    const x = tf.variable(batchPrevS);
+    const predictions = model.predict(x);
+    const re = mse(predictions, targets, predMask);
+    x.dispose();
 
-function drawScores() {
-  data1 = new google.visualization.DataTable();
-  data1.addColumn('number', 'X');
-  data1.addColumn('number', 'Score');
+    return re;
+  }, true, modelVars);
 
-  chart1 = new google.visualization.LineChart(document.getElementById('scoreChart'));
-  chart1.draw(data1, chart1opt);
+  targets.dispose();
+
+  batchPrevS.dispose();
+  batchA.dispose();
+  batchR.dispose();
+  batchNextS.dispose();
+  batchDone.dispose();
+
+  predMask.dispose();
+
+  return loss;
 }
-
-function drawLosses() {
-  data2 = new google.visualization.DataTable();
-  data2.addColumn('number', 'X');
-  data2.addColumn('number', 'Loss');
-
-  chart2 = new google.visualization.LineChart(document.getElementById('lossChart'));
-  chart2.draw(data2, chart2opt);
-}
-
-function drawTimes() {
-  data3 = new google.visualization.DataTable();
-  data3.addColumn('number', 'X');
-  data3.addColumn('number', 'UPS');
-
-  chart3 = new google.visualization.LineChart(document.getElementById('timeChart'));
-  chart3.draw(data3, chart3opt);
-}
-
-function updateGraphs() {
-  chart1.draw(data1, chart1opt);
-  chart2.draw(data2, chart2opt);
-  chart3.draw(data3, chart3opt);
-}
-

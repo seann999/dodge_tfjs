@@ -6,11 +6,15 @@ function renderWorld() {
   if (info != null) {
     ctx.font = "30px Verdana";
     ctx.fillStyle = "white";
-    ctx.fillText(info.episode, render.canvas.width - ctx.measureText(info.episode).width - 20, 30);
+    ctx.fillText(info.episode, render.canvas.width - ctx.measureText(info.episode).width - 20, 35);
+
+    ctx.font = "25px Verdana";
+    ctx.fillStyle = "white";
+    ctx.fillText(info.frame, render.canvas.width - ctx.measureText(info.frame).width - 20, 65);
 
     ctx.font = "40px Verdana";
     ctx.fillStyle = "white";
-    ctx.fillText(info.score, render.canvas.width - ctx.measureText(info.score).width - 20, 70);
+    ctx.fillText(info.score, render.canvas.width - ctx.measureText(info.score).width - 20, 105);
 
     ctx.beginPath();
     const h = info.values[info.action]*10;

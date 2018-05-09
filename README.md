@@ -12,4 +12,6 @@ On the webpage, hyperparameters can be edited at the bottom.
 
 Note: Currently, resetting and restarting the agent seems to cause a small memory leak. Refreshing the page is recommended if this causes any problems.
 
+Note: Currently, training will pause if the browser tab loses focus (depends on setTimeout).
+
 [Webpage](http://web.sfc.keio.ac.jp/~t15704yn/falling/index.html)

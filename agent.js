@@ -249,6 +249,7 @@ function* trainGen(episodes = 10000000) {
       const nextS = stackObs();
 
       yield {
+        frame: totalFrames,
         episode: ep,
         score: epFrames,
         observation: nextS,

@@ -230,7 +230,7 @@ function* trainGen(episodes = 10000000) {
       } else {
         const a = Math.min(1, totalFrames/params.finExpFrame);
 
-        if (replay.length >= params.replayStartSize && Math.random() > a*0.1+(1-a)*params.initExp) {
+        if (replay.length >= params.replayStartSize && Math.random() > a*params.finExp+(1-a)*params.initExp) {
           const maxAct = vals.argMax(1);
           act = maxAct.dataSync();
           maxAct.dispose();

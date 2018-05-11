@@ -10,8 +10,10 @@ Every frame, the agent senses the environment through raycasting. Actions are LE
 
 On the webpage, hyperparameters can be edited at the bottom.
 
-Note: Currently, resetting and restarting the agent seems to cause a small memory leak. Refreshing the page is recommended if this causes any problems.
-
-Note: Currently, training will pause if the browser tab loses focus (depends on setTimeout).
+Notes:
+* Resetting and restarting the agent seems to cause a small memory leak. Refreshing the page is recommended if this causes any problems.
+* Training will pause if the browser tab loses focus (depends on setTimeout).
+* On default settings, the agent usually starts performing better at around 100 episodes.
+* May not work correctly on some platforms/browsers. For example, for some reason, I have seen it not work with Chrome on Ubuntu 16.04, while it did with Firefox.
 
 [Webpage](http://web.sfc.keio.ac.jp/~t15704yn/falling/index.html)

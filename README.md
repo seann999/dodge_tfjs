@@ -16,4 +16,4 @@ Notes:
 * On default settings, the agent usually starts performing better at around 100 episodes.
 * May not work correctly on some platforms/browsers. For example, for some reason, I have seen it not work with Chrome on Ubuntu 16.04, while it did with Firefox.
 
-[Webpage](http://web.sfc.keio.ac.jp/~t15704yn/falling/index.html)
+[Webpage](https://seann999.github.io/dodge_tfjs/)
